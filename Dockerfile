@@ -28,13 +28,15 @@ COPY lib/api-spec/package.json                lib/api-spec/
 COPY scripts/package.json                     scripts/
 
 # Le lockfile a été généré sous macOS : les binaires natifs musl (rollup,
-# lightningcss, etc.) sont marqués '-' (exclus). On dit à pnpm de les inclure
-# via supportedArchitectures, puis on ré-installe sans frozen-lockfile.
-RUN printf '\nsupportedArchitectures[os][]=linux\nsupportedArchitectures[cpu][]=x64\nsupportedArchitectures[libc][]=musl\nsupportedArchitectures[libc][]=glibc\n' >> .npmrc
+# lightningcss, etc.) sont marqués '-' (exclus). supportedArchitectures seul
+# ne suffit pas car pnpm respecte les entrées '-' du lockfile existant.
+# Solution : supprimer le lockfile pour forcer une résolution fraîche sur
+# Alpine Linux (musl), qui inclura automatiquement les bons binaires natifs.
+RUN printf '\nsupportedArchitectures[os][]=linux\nsupportedArchitectures[cpu][]=x64\nsupportedArchitectures[libc][]=musl\nsupportedArchitectures[libc][]=glibc\n' >> .npmrc && \
+    rm pnpm-lock.yaml
 
 # --ignore-scripts évite le blocage ERR_PNPM_IGNORED_BUILDS pour esbuild.
-# --no-frozen-lockfile permet à pnpm de réévaluer les binaires pour musl.
-RUN pnpm install --no-frozen-lockfile --ignore-scripts
+RUN pnpm install --ignore-scripts
 # Reconstruire esbuild (son postinstall télécharge le binaire natif)
 RUN pnpm rebuild esbuild
 
