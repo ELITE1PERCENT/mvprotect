@@ -1,0 +1,271 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: quotes
+    description: Quote request operations
+  - name: realisations
+    description: Gallery / portfolio operations
+  - name: articles
+    description: Blog article operations
+  - name: testimonials
+    description: Customer testimonial operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /quote-requests:
+    post:
+      operationId: createQuoteRequest
+      tags: [quotes]
+      summary: Submit a quote request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteRequestInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuoteRequest"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /realisations:
+    get:
+      operationId: listRealisations
+      tags: [realisations]
+      summary: List gallery realisations
+      parameters:
+        - name: service
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [nettoyage, polissage, ppf, covering]
+      responses:
+        "200":
+          description: List of realisations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Realisation"
+  /articles:
+    get:
+      operationId: listArticles
+      tags: [articles]
+      summary: List blog articles
+      responses:
+        "200":
+          description: List of articles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ArticleSummary"
+  /articles/{slug}:
+    get:
+      operationId: getArticle
+      tags: [articles]
+      summary: Get a single article by slug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Article
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Article"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiMessage"
+  /testimonials:
+    get:
+      operationId: listTestimonials
+      tags: [testimonials]
+      summary: List customer testimonials
+      responses:
+        "200":
+          description: List of testimonials
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Testimonial"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ApiMessage:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    QuoteRequestInput:
+      type: object
+      required: [name, phone, email, service, message]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        phone:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+        service:
+          type: string
+          enum: [nettoyage, polissage, ppf, covering, autre]
+        message:
+          type: string
+          minLength: 1
+        marketingConsent:
+          type: boolean
+    QuoteRequest:
+      type: object
+      required: [id, name, phone, email, service, message, marketingConsent, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        service:
+          type: string
+        message:
+          type: string
+        marketingConsent:
+          type: boolean
+        createdAt:
+          type: string
+    Realisation:
+      type: object
+      required: [id, title, service, imageUrl, description]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        service:
+          type: string
+          enum: [nettoyage, polissage, ppf, covering]
+        imageUrl:
+          type: string
+        description:
+          type: string
+        vehicle:
+          type: ["string", "null"]
+    ArticleSummary:
+      type: object
+      required: [id, slug, title, excerpt, coverImageUrl, publishedAt, viewCount]
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        title:
+          type: string
+        excerpt:
+          type: string
+        coverImageUrl:
+          type: string
+        publishedAt:
+          type: string
+        viewCount:
+          type: integer
+          description: Total number of times this article has been viewed
+    Article:
+      type: object
+      required: [id, slug, title, excerpt, coverImageUrl, publishedAt, updatedAt, viewCount, content, related]
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        title:
+          type: string
+        excerpt:
+          type: string
+        coverImageUrl:
+          type: string
+        publishedAt:
+          type: string
+        updatedAt:
+          type: string
+          description: ISO timestamp of the last content modification (distinct from publishedAt)
+        viewCount:
+          type: integer
+          description: Total number of times this article has been viewed
+        content:
+          type: string
+        related:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArticleSummary"
+    Testimonial:
+      type: object
+      required: [id, name, rating, comment, source]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+        vehicle:
+          type: ["string", "null"]
+        source:
+          type: string
+          enum: [google, site]
+          description: "'google' = avis Google vérifié, 'site' = témoignage recueilli directement"

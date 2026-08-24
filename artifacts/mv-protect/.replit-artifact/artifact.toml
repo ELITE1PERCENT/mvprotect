@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "MV PROTECT"
+version = "1.0.0"
+id = "artifacts/mv-protect"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25590
+
+[services.development]
+run = "pnpm --filter @workspace/mv-protect run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/mv-protect", "run", "build" ]
+publicDir = "artifacts/mv-protect/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25590"
+BASE_PATH = "/"

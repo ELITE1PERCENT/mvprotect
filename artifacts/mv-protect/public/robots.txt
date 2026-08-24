@@ -1,0 +1,35 @@
+# MV PROTECT — robots.txt
+# https://mvprotect.fr
+
+User-agent: *
+Allow: /
+
+# Zones privées
+Disallow: /api/
+Disallow: /maximeadmin/
+Disallow: /maximeadmin
+
+# ── Crawlers IA — autorisés ──────────────────────────────────────────────────
+User-agent: GPTBot
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: FacebookBot
+Allow: /
+
+# ────────────────────────────────────────────────────────────────────────────
+Sitemap: https://mvprotect.fr/sitemap.xml
