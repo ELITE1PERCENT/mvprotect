@@ -5,7 +5,7 @@ on:
 
 jobs:
   diagnose:
-    name: "Start machine and capture boot logs"
+    name: "Boot machine and grep crash reason"
     runs-on: ubuntu-latest
     environment: FLY_API_TOKEN
 
@@ -17,24 +17,23 @@ jobs:
         run: |
           MID=$(flyctl machine list --app mvprotect --json | python3 -c "import sys,json;print(json.load(sys.stdin)[0]['id'])")
           echo "mid=$MID" >> $GITHUB_OUTPUT
-          echo "Machine: $MID"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Start machine
-        run: flyctl machine start ${{ steps.mid.outputs.mid }} --app mvprotect || true
+      - name: Restart machine to trigger fresh boot
+        run: flyctl machine restart ${{ steps.mid.outputs.mid }} --app mvprotect || true
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
-      - name: Wait for boot
-        run: sleep 20
+      - name: Wait for boot + crash
+        run: sleep 25
 
-      - name: Capture logs
-        run: timeout 40 flyctl logs --app mvprotect --no-tail || true
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-      - name: Machine status
-        run: flyctl status --app mvprotect || true
+      - name: Capture and filter logs
+        run: |
+          timeout 40 flyctl logs --app mvprotect --no-tail > /tmp/full.log 2>&1 || true
+          echo "=================== FILTERED CRASH LINES ==================="
+          grep -iE 'error|does not exist|cannot find|module_not_found|requireStack|throw|seed|migrat|listening|healthz|econn|exit code|unhandled|relation|reject|at file|at async|at Object' /tmp/full.log | sed -E 's#https?://[^ ]+#[URL]#g' | head -60 || echo "no matching lines"
+          echo "=================== TOTAL LOG LINES ==================="
+          wc -l /tmp/full.log
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
