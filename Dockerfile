@@ -27,9 +27,10 @@ COPY lib/api-client-react/package.json        lib/api-client-react/
 COPY lib/api-spec/package.json                lib/api-spec/
 COPY scripts/package.json                     scripts/
 
-# Installer toutes les dépendances (frozen = reproductible)
-# --ignore-scripts évite le blocage ERR_PNPM_IGNORED_BUILDS pour esbuild
-RUN pnpm install --frozen-lockfile --ignore-scripts
+# Installer les dépendances sans frozen-lockfile pour que pnpm installe
+# les binaires natifs adaptés à la plateforme (musl pour Alpine).
+# --ignore-scripts évite le blocage ERR_PNPM_IGNORED_BUILDS pour esbuild.
+RUN pnpm install --ignore-scripts
 # Reconstruire esbuild (son postinstall télécharge le binaire natif)
 RUN pnpm rebuild esbuild
 
