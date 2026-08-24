@@ -27,21 +27,16 @@ COPY lib/api-client-react/package.json        lib/api-client-react/
 COPY lib/api-spec/package.json                lib/api-spec/
 COPY scripts/package.json                     scripts/
 
-# Installer les dépendances.
+# Le lockfile a été généré sous macOS : les binaires natifs musl (rollup,
+# lightningcss, etc.) sont marqués '-' (exclus). On dit à pnpm de les inclure
+# via supportedArchitectures, puis on ré-installe sans frozen-lockfile.
+RUN printf '\nsupportedArchitectures[os][]=linux\nsupportedArchitectures[cpu][]=x64\nsupportedArchitectures[libc][]=musl\nsupportedArchitectures[libc][]=glibc\n' >> .npmrc
+
 # --ignore-scripts évite le blocage ERR_PNPM_IGNORED_BUILDS pour esbuild.
-RUN pnpm install --ignore-scripts
+# --no-frozen-lockfile permet à pnpm de réévaluer les binaires pour musl.
+RUN pnpm install --no-frozen-lockfile --ignore-scripts
 # Reconstruire esbuild (son postinstall télécharge le binaire natif)
 RUN pnpm rebuild esbuild
-# Le lockfile pnpm a été généré sous macOS : il exclut le binaire musl de rollup
-# (marqué '-' dans pnpm-lock.yaml). pnpm respecte cette exclusion même sans
-# --frozen-lockfile, et npm crashe dans le pnpm virtual store.
-# On télécharge le tarball directement depuis le registry npm pour contourner.
-RUN wget -qO /tmp/rollup-musl.tgz \
-      "https://registry.npmjs.org/@rollup/rollup-linux-x64-musl/-/rollup-linux-x64-musl-4.62.2.tgz" && \
-    mkdir -p /app/node_modules/@rollup/rollup-linux-x64-musl && \
-    tar -xzf /tmp/rollup-musl.tgz --strip-components=1 \
-        -C /app/node_modules/@rollup/rollup-linux-x64-musl && \
-    rm /tmp/rollup-musl.tgz
 
 # Copier le reste du code source
 COPY . .
