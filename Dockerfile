@@ -27,12 +27,15 @@ COPY lib/api-client-react/package.json        lib/api-client-react/
 COPY lib/api-spec/package.json                lib/api-spec/
 COPY scripts/package.json                     scripts/
 
-# Installer les dépendances sans frozen-lockfile pour que pnpm installe
-# les binaires natifs adaptés à la plateforme (musl pour Alpine).
+# Installer les dépendances.
 # --ignore-scripts évite le blocage ERR_PNPM_IGNORED_BUILDS pour esbuild.
 RUN pnpm install --ignore-scripts
 # Reconstruire esbuild (son postinstall télécharge le binaire natif)
 RUN pnpm rebuild esbuild
+# Le lockfile pnpm a été généré sous macOS : il exclut le binaire musl de rollup
+# (marqué '-' dans pnpm-lock.yaml). pnpm respecte cette exclusion même sans
+# --frozen-lockfile. On installe le binaire directement via npm pour contourner.
+RUN npm install --no-save @rollup/rollup-linux-x64-musl@4.62.2
 
 # Copier le reste du code source
 COPY . .
