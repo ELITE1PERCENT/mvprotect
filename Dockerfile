@@ -5,16 +5,17 @@
 #   - Stage "builder" : node:24 (Debian/glibc) — installe les deps, compile
 #     le frontend React (Vite/rollup) et le backend Express (esbuild).
 #     Debian évite les problèmes de binaires natifs musl (rollup, lightningcss)
-#     que Vite nécessite au build. Les deps runtime importées sont pure-JS,
-#     donc copier node_modules vers Alpine ne pose aucun problème.
-#   - Stage "production" : image légère node:24-alpine avec uniquement les
-#     artefacts compilés et les node_modules runtime.
+#     que Vite nécessite au build. Les deps runtime importées sont pure-JS.
+#   - Stage "production" : image légère node:24-alpine.
 #
-# node-linker=hoisted : pnpm génère un node_modules PLAT (façon npm) au lieu
-# de la structure isolée à symlinks. Indispensable ici car esbuild externalise
-# @google-cloud/storage : le bundle dist/index.mjs fait `import
-# "@google-cloud/storage"` au runtime et doit le résoudre depuis
-# /app/node_modules — ce qui n'est possible qu'avec un node_modules hoisté.
+# RÉSOLUTION DES MODULES EXTERNALISÉS
+# esbuild externalise @google-cloud/storage (seule dépendance externalisée
+# réellement importée au runtime). Le serveur est donc lancé DEPUIS
+# artifacts/api-server/dist/, avec les node_modules pnpm laissés en place
+# (isolés, à symlinks) — exactement comme sur l'hôte de dev. Node résout
+# alors `import "@google-cloud/storage"` via
+# artifacts/api-server/node_modules/@google-cloud/storage (symlink vers le
+# store .pnpm de /app/node_modules). Le store racine est donc aussi copié.
 # ============================================================================
 
 # ── Stage 1: builder ─────────────────────────────────────────────────────────
@@ -36,26 +37,22 @@ COPY lib/api-client-react/package.json        lib/api-client-react/
 COPY lib/api-spec/package.json                lib/api-spec/
 COPY scripts/package.json                     scripts/
 
-# 1. node-linker=hoisted → node_modules plat, résolvable depuis /app/dist.
-# 2. Supprimer le lockfile (généré sous macOS, sans les binaires natifs linux)
-#    pour forcer une résolution fraîche sur Debian glibc, qui installera les
-#    bons binaires (@rollup/rollup-linux-x64-gnu, lightningcss gnu, etc.).
-RUN printf '\nnode-linker=hoisted\n' >> .npmrc && \
-    rm pnpm-lock.yaml
+# Supprimer le lockfile (généré sous macOS, sans les binaires natifs linux)
+# pour forcer une résolution fraîche sur Debian glibc, qui installera les
+# bons binaires (@rollup/rollup-linux-x64-gnu, lightningcss gnu, etc.).
+RUN rm pnpm-lock.yaml
 
 # --ignore-scripts évite le blocage ERR_PNPM_IGNORED_BUILDS pour esbuild.
 RUN pnpm install --ignore-scripts
 # Reconstruire esbuild (son postinstall télécharge le binaire natif)
 RUN pnpm rebuild esbuild
 
-# ── Assertion : @google-cloud/storage DOIT être résolvable à la racine ────────
-# Le bundle dist/index.mjs (dans /app/dist) fait `import "@google-cloud/storage"`
-# au runtime. Avec node-linker=hoisted il doit exister à /app/node_modules.
-# Si l'assertion échoue, le build s'arrête ici avec l'emplacement réel du package.
-RUN test -d node_modules/@google-cloud/storage \
-      && echo "OK: @google-cloud/storage hoisté à la racine node_modules" \
-      || ( echo "ECHEC: @google-cloud/storage absent de la racine. Emplacements trouvés :"; \
-           find . -maxdepth 5 -type d -path '*@google-cloud/storage' -not -path '*/.pnpm/*' 2>/dev/null; \
+# ── Assertion : @google-cloud/storage DOIT être résolvable depuis api-server ──
+# `test -d` suit le symlink : vrai uniquement si la cible (dans .pnpm) existe.
+RUN test -d artifacts/api-server/node_modules/@google-cloud/storage \
+      && echo "OK: @google-cloud/storage résolvable depuis artifacts/api-server" \
+      || ( echo "ECHEC: @google-cloud/storage introuvable"; \
+           ls -la artifacts/api-server/node_modules/@google-cloud/ 2>/dev/null; \
            exit 1 )
 
 # Copier le reste du code source
@@ -79,14 +76,18 @@ FROM node:24-alpine AS production
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Copier les artefacts compilés
-COPY --from=builder /app/artifacts/api-server/dist           ./dist
-COPY --from=builder /app/artifacts/mv-protect/dist/public    ./public
+# Serveur compilé + ses node_modules (symlinks) laissés côte à côte, comme en
+# dev, pour que la résolution de @google-cloud/storage fonctionne à l'identique.
+COPY --from=builder /app/artifacts/api-server/dist           ./artifacts/api-server/dist
+COPY --from=builder /app/artifacts/api-server/node_modules   ./artifacts/api-server/node_modules
 
-# node_modules plat (hoisted) : contient @google-cloud/storage et toutes les
-# deps externalisées par esbuild, résolvables depuis /app/dist/index.mjs.
-# Toutes les deps runtime importées sont pure-JS → aucun souci glibc/musl.
+# Store pnpm racine (.pnpm) : cible des symlinks ci-dessus. Toutes les deps
+# runtime importées sont pure-JS → aucun souci glibc/musl.
 COPY --from=builder /app/node_modules                        ./node_modules
+
+# Assets statiques du frontend : app.ts les sert depuis `<dossierServeur>/../public`
+# soit /app/artifacts/api-server/dist/../public = /app/artifacts/api-server/public
+COPY --from=builder /app/artifacts/mv-protect/dist/public    ./artifacts/api-server/public
 
 EXPOSE 8080
 
@@ -94,4 +95,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
   CMD wget -qO- http://localhost:8080/api/healthz || exit 1
 
-CMD ["node", "--enable-source-maps", "./dist/index.mjs"]
+CMD ["node", "--enable-source-maps", "./artifacts/api-server/dist/index.mjs"]
