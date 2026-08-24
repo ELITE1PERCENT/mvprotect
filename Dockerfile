@@ -34,8 +34,14 @@ RUN pnpm install --ignore-scripts
 RUN pnpm rebuild esbuild
 # Le lockfile pnpm a été généré sous macOS : il exclut le binaire musl de rollup
 # (marqué '-' dans pnpm-lock.yaml). pnpm respecte cette exclusion même sans
-# --frozen-lockfile. On installe le binaire directement via npm pour contourner.
-RUN npm install --no-save @rollup/rollup-linux-x64-musl@4.62.2
+# --frozen-lockfile, et npm crashe dans le pnpm virtual store.
+# On télécharge le tarball directement depuis le registry npm pour contourner.
+RUN wget -qO /tmp/rollup-musl.tgz \
+      "https://registry.npmjs.org/@rollup/rollup-linux-x64-musl/-/rollup-linux-x64-musl-4.62.2.tgz" && \
+    mkdir -p /app/node_modules/@rollup/rollup-linux-x64-musl && \
+    tar -xzf /tmp/rollup-musl.tgz --strip-components=1 \
+        -C /app/node_modules/@rollup/rollup-linux-x64-musl && \
+    rm /tmp/rollup-musl.tgz
 
 # Copier le reste du code source
 COPY . .
