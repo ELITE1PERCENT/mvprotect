@@ -49,9 +49,19 @@ if (process.env.NODE_ENV === "production") {
 
   app.use(express.static(publicDir));
 
-  // SPA fallback — serve index.html for every non-API route so that
+  // SPA fallback — serve index.html for every non-API GET route so that
   // client-side routing (wouter) works on page refresh.
-  app.get("*", (_req, res) => {
+  //
+  // Implémenté comme middleware plutôt que `app.get("*")` : Express 5 utilise
+  // path-to-regexp v8, qui rejette le wildcard `*` non nommé
+  // (« Missing parameter name at index 1: * »). Un middleware final évite
+  // complètement path-to-regexp et attrape les GET non gérés (les vrais assets
+  // ont déjà été servis par express.static ci-dessus).
+  app.use((req, res, next) => {
+    if (req.method !== "GET") {
+      next();
+      return;
+    }
     res.sendFile(join(publicDir, "index.html"));
   });
 }
