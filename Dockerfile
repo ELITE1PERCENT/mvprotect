@@ -2,14 +2,17 @@
 # MV PROTECT — Dockerfile pour Fly.io
 #
 # Architecture:
-#   - Stage "builder" : installe les deps, compile le frontend React (Vite)
-#     et le backend Express (esbuild)
-#   - Stage "production" : image légère avec uniquement les artefacts compilés
-#     et les node_modules nécessaires en runtime
+#   - Stage "builder" : node:24 (Debian/glibc) — installe les deps, compile
+#     le frontend React (Vite/rollup) et le backend Express (esbuild).
+#     Debian évite les problèmes de binaires natifs musl (rollup, lightningcss)
+#     que Vite nécessite au build. Les deps runtime sont toutes pure-JS, donc
+#     copier node_modules vers Alpine ne pose aucun problème.
+#   - Stage "production" : image légère node:24-alpine avec uniquement les
+#     artefacts compilés et les node_modules runtime.
 # ============================================================================
 
 # ── Stage 1: builder ─────────────────────────────────────────────────────────
-FROM node:24-alpine AS builder
+FROM node:24 AS builder
 
 # pnpm via corepack (même version que le lock file lockfileVersion 9)
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -27,13 +30,11 @@ COPY lib/api-client-react/package.json        lib/api-client-react/
 COPY lib/api-spec/package.json                lib/api-spec/
 COPY scripts/package.json                     scripts/
 
-# Le lockfile a été généré sous macOS : les binaires natifs musl (rollup,
-# lightningcss, etc.) sont marqués '-' (exclus). supportedArchitectures seul
-# ne suffit pas car pnpm respecte les entrées '-' du lockfile existant.
-# Solution : supprimer le lockfile pour forcer une résolution fraîche sur
-# Alpine Linux (musl), qui inclura automatiquement les bons binaires natifs.
-RUN printf '\nsupportedArchitectures[os][]=linux\nsupportedArchitectures[cpu][]=x64\nsupportedArchitectures[libc][]=musl\nsupportedArchitectures[libc][]=glibc\n' >> .npmrc && \
-    rm pnpm-lock.yaml
+# Le lockfile a été généré sous macOS : les binaires natifs linux (rollup,
+# lightningcss, etc.) sont absents. Supprimer le lockfile pour forcer une
+# résolution fraîche sur Debian Linux (glibc), qui installera les bons
+# binaires natifs gnu automatiquement.
+RUN rm pnpm-lock.yaml
 
 # --ignore-scripts évite le blocage ERR_PNPM_IGNORED_BUILDS pour esbuild.
 RUN pnpm install --ignore-scripts
@@ -67,6 +68,8 @@ COPY --from=builder /app/artifacts/mv-protect/dist/public    ./public
 
 # Copier les node_modules : nécessaires pour les packages externalisés
 # (@google-cloud/storage, pino workers, etc.)
+# Tous les packages runtime sont pure-JS : pas de problème de compatibilité
+# glibc/musl pour les node_modules copiés depuis le builder Debian.
 COPY --from=builder /app/node_modules                        ./node_modules
 COPY --from=builder /app/artifacts/api-server/node_modules   ./artifacts/api-server/node_modules
 
