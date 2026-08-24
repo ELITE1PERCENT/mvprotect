@@ -1,0 +1,9 @@
+.git
+.gitignore
+.replit
+.replitignore
+**/dist
+**/node_modules
+**/.replit-artifact
+README.md
+replit.md

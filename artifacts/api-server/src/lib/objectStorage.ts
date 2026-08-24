@@ -12,23 +12,47 @@ import {
 
 const REPLIT_SIDECAR_ENDPOINT = 'http://127.0.0.1:1106';
 
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: 'replit',
-    subject_token_type: 'access_token',
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: 'external_account',
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: 'json',
-        subject_token_field_name: 'access_token',
+/**
+ * Build a GCS Storage client that works in two environments:
+ *
+ * 1. **Replit** (sidecar auth): no extra env vars needed — the sidecar at
+ *    `http://127.0.0.1:1106` supplies short-lived tokens automatically.
+ *
+ * 2. **Fly.io / standard GCS** (service-account JSON): set
+ *    `GCS_CREDENTIALS_JSON` to the full contents of a GCP service-account
+ *    key file (the JSON string), and `GCS_PROJECT_ID` to your GCP project id.
+ */
+function createStorageClient(): Storage {
+  const credentialsJson = process.env['GCS_CREDENTIALS_JSON'];
+  const projectId = process.env['GCS_PROJECT_ID'] ?? '';
+
+  if (credentialsJson) {
+    // Standard GCS auth via service-account JSON (Fly.io / local / CI)
+    const credentials = JSON.parse(credentialsJson) as object;
+    return new Storage({ credentials, projectId });
+  }
+
+  // Replit external-account auth via local sidecar
+  return new Storage({
+    credentials: {
+      audience: 'replit',
+      subject_token_type: 'access_token',
+      token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
+      type: 'external_account',
+      credential_source: {
+        url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
+        format: {
+          type: 'json',
+          subject_token_field_name: 'access_token',
+        },
       },
+      universe_domain: 'googleapis.com',
     },
-    universe_domain: 'googleapis.com',
-  },
-  projectId: '',
-});
+    projectId: '',
+  });
+}
+
+export const objectStorageClient = createStorageClient();
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -243,6 +267,19 @@ async function signObjectURL({
   method: 'GET' | 'PUT' | 'DELETE' | 'HEAD';
   ttlSec: number;
 }): Promise<string> {
+  // Standard GCS signed URL (Fly.io) — requires a service-account key with
+  // the "Service Account Token Creator" role.
+  if (process.env['GCS_CREDENTIALS_JSON']) {
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    const [signedUrl] = await file.getSignedUrl({
+      version: 'v4',
+      action: method === 'PUT' ? 'write' : method === 'GET' ? 'read' : method === 'DELETE' ? 'delete' : 'read',
+      expires: Date.now() + ttlSec * 1000,
+    });
+    return signedUrl;
+  }
+
+  // Replit sidecar-based signed URL
   const request = {
     bucket_name: bucketName,
     object_name: objectName,
