@@ -14,32 +14,32 @@ jobs:
 
       - name: Create Fly app
         run: |
-          if fly apps list | grep -q "^mvprotect"; then
+          if flyctl apps list | grep -q "^mvprotect"; then
             echo "App already exists"
           else
-            fly apps create mvprotect --region cdg
+            flyctl apps create mvprotect --region cdg
           fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Create Postgres cluster
         run: |
-          if fly postgres list | grep -q "mvprotect-db"; then
+          if flyctl postgres list | grep -q "mvprotect-db"; then
             echo "DB already exists"
           else
-            fly postgres create --name mvprotect-db --region cdg --vm-size shared-cpu-1x --volume-size 1
+            flyctl postgres create --name mvprotect-db --region cdg --vm-size shared-cpu-1x --volume-size 1
           fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Attach Postgres to app
-        run: fly postgres attach mvprotect-db --app mvprotect || echo "Already attached"
+        run: flyctl postgres attach mvprotect-db --app mvprotect || echo "Already attached"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Set app secrets
         run: |
-          fly secrets set \
+          flyctl secrets set \
             JWT_EXPIRES_IN="${{ secrets.JWT_EXPIRES_IN }}" \
             SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
             ADMIN_EMAIL="${{ secrets.ADMIN_EMAIL }}" \
