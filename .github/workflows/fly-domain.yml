@@ -1,0 +1,41 @@
+name: "Fly.io Domain Setup"
+
+# Ajoute les certificats TLS pour mvprotect.fr et www.mvprotect.fr, et affiche
+# les enregistrements DNS a configurer chez le registrar (Gandi).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  domain:
+    name: "Add certs and show DNS records"
+    runs-on: ubuntu-latest
+    environment: FLY_API_TOKEN
+
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Current IPs
+        run: flyctl ips list --app mvprotect || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Add cert for apex mvprotect.fr
+        run: flyctl certs add mvprotect.fr --app mvprotect || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Add cert for www.mvprotect.fr
+        run: flyctl certs add www.mvprotect.fr --app mvprotect || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Show cert mvprotect.fr
+        run: flyctl certs show mvprotect.fr --app mvprotect || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Show cert www.mvprotect.fr
+        run: flyctl certs show www.mvprotect.fr --app mvprotect || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
