@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { runReplitImport } from "./lib/replit-import";
 import { runStartupSeed } from "./lib/startup-seed";
 import { startWeeklyReportCron } from "./lib/weekly-report";
 
@@ -16,6 +17,9 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+// Import unique des données Replit → Fly (schéma + contenu), avant le seed.
+await runReplitImport();
 
 await runStartupSeed();
 
