@@ -5,10 +5,16 @@
 #   - Stage "builder" : node:24 (Debian/glibc) — installe les deps, compile
 #     le frontend React (Vite/rollup) et le backend Express (esbuild).
 #     Debian évite les problèmes de binaires natifs musl (rollup, lightningcss)
-#     que Vite nécessite au build. Les deps runtime sont toutes pure-JS, donc
-#     copier node_modules vers Alpine ne pose aucun problème.
+#     que Vite nécessite au build. Les deps runtime importées sont pure-JS,
+#     donc copier node_modules vers Alpine ne pose aucun problème.
 #   - Stage "production" : image légère node:24-alpine avec uniquement les
 #     artefacts compilés et les node_modules runtime.
+#
+# node-linker=hoisted : pnpm génère un node_modules PLAT (façon npm) au lieu
+# de la structure isolée à symlinks. Indispensable ici car esbuild externalise
+# @google-cloud/storage : le bundle dist/index.mjs fait `import
+# "@google-cloud/storage"` au runtime et doit le résoudre depuis
+# /app/node_modules — ce qui n'est possible qu'avec un node_modules hoisté.
 # ============================================================================
 
 # ── Stage 1: builder ─────────────────────────────────────────────────────────
@@ -30,11 +36,12 @@ COPY lib/api-client-react/package.json        lib/api-client-react/
 COPY lib/api-spec/package.json                lib/api-spec/
 COPY scripts/package.json                     scripts/
 
-# Le lockfile a été généré sous macOS : les binaires natifs linux (rollup,
-# lightningcss, etc.) sont absents. Supprimer le lockfile pour forcer une
-# résolution fraîche sur Debian Linux (glibc), qui installera les bons
-# binaires natifs gnu automatiquement.
-RUN rm pnpm-lock.yaml
+# 1. node-linker=hoisted → node_modules plat, résolvable depuis /app/dist.
+# 2. Supprimer le lockfile (généré sous macOS, sans les binaires natifs linux)
+#    pour forcer une résolution fraîche sur Debian glibc, qui installera les
+#    bons binaires (@rollup/rollup-linux-x64-gnu, lightningcss gnu, etc.).
+RUN printf '\nnode-linker=hoisted\n' >> .npmrc && \
+    rm pnpm-lock.yaml
 
 # --ignore-scripts évite le blocage ERR_PNPM_IGNORED_BUILDS pour esbuild.
 RUN pnpm install --ignore-scripts
@@ -66,12 +73,10 @@ ENV NODE_ENV=production
 COPY --from=builder /app/artifacts/api-server/dist           ./dist
 COPY --from=builder /app/artifacts/mv-protect/dist/public    ./public
 
-# Copier les node_modules : nécessaires pour les packages externalisés
-# (@google-cloud/storage, pino workers, etc.)
-# Tous les packages runtime sont pure-JS : pas de problème de compatibilité
-# glibc/musl pour les node_modules copiés depuis le builder Debian.
+# node_modules plat (hoisted) : contient @google-cloud/storage et toutes les
+# deps externalisées par esbuild, résolvables depuis /app/dist/index.mjs.
+# Toutes les deps runtime importées sont pure-JS → aucun souci glibc/musl.
 COPY --from=builder /app/node_modules                        ./node_modules
-COPY --from=builder /app/artifacts/api-server/node_modules   ./artifacts/api-server/node_modules
 
 EXPOSE 8080
 
