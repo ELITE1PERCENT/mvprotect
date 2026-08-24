@@ -28,7 +28,10 @@ COPY lib/api-spec/package.json                lib/api-spec/
 COPY scripts/package.json                     scripts/
 
 # Installer toutes les dépendances (frozen = reproductible)
-RUN pnpm install --frozen-lockfile
+# --ignore-scripts évite le blocage ERR_PNPM_IGNORED_BUILDS pour esbuild
+RUN pnpm install --frozen-lockfile --ignore-scripts
+# Reconstruire esbuild (son postinstall télécharge le binaire natif)
+RUN pnpm rebuild esbuild
 
 # Copier le reste du code source
 COPY . .
