@@ -1,0 +1,53 @@
+name: "Fly.io Setup initial"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    name: "Setup Fly.io app and secrets"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Create Fly app
+        run: |
+          if fly apps list | grep -q "^mvprotect"; then
+            echo "App already exists"
+          else
+            fly apps create mvprotect --region cdg
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Create Postgres cluster
+        run: |
+          if fly postgres list | grep -q "mvprotect-db"; then
+            echo "DB already exists"
+          else
+            fly postgres create --name mvprotect-db --region cdg --vm-size shared-cpu-1x --volume-size 1
+          fi
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Attach Postgres to app
+        run: fly postgres attach mvprotect-db --app mvprotect || echo "Already attached"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Set app secrets
+        run: |
+          fly secrets set \
+            JWT_EXPIRES_IN="${{ secrets.JWT_EXPIRES_IN }}" \
+            SESSION_SECRET="${{ secrets.SESSION_SECRET }}" \
+            ADMIN_EMAIL="${{ secrets.ADMIN_EMAIL }}" \
+            ADMIN_PASSWORD_HASH="${{ secrets.ADMIN_PASSWORD_HASH }}" \
+            RESEND_API_KEY="${{ secrets.RESEND_API_KEY }}" \
+            GCS_PROJECT_ID="${{ secrets.GCS_PROJECT_ID }}" \
+            GCS_CREDENTIALS_JSON="${{ secrets.GCS_CREDENTIALS_JSON }}" \
+            PUBLIC_OBJECT_SEARCH_PATHS="${{ secrets.PUBLIC_OBJECT_SEARCH_PATHS }}" \
+            PRIVATE_OBJECT_DIR="${{ secrets.PRIVATE_OBJECT_DIR }}" \
+            --app mvprotect
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
