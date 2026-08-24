@@ -48,6 +48,16 @@ RUN pnpm install --ignore-scripts
 # Reconstruire esbuild (son postinstall télécharge le binaire natif)
 RUN pnpm rebuild esbuild
 
+# ── Assertion : @google-cloud/storage DOIT être résolvable à la racine ────────
+# Le bundle dist/index.mjs (dans /app/dist) fait `import "@google-cloud/storage"`
+# au runtime. Avec node-linker=hoisted il doit exister à /app/node_modules.
+# Si l'assertion échoue, le build s'arrête ici avec l'emplacement réel du package.
+RUN test -d node_modules/@google-cloud/storage \
+      && echo "OK: @google-cloud/storage hoisté à la racine node_modules" \
+      || ( echo "ECHEC: @google-cloud/storage absent de la racine. Emplacements trouvés :"; \
+           find . -maxdepth 5 -type d -path '*@google-cloud/storage' -not -path '*/.pnpm/*' 2>/dev/null; \
+           exit 1 )
+
 # Copier le reste du code source
 COPY . .
 
