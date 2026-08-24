@@ -27,7 +27,7 @@ jobs:
           if flyctl postgres list | grep -q "mvprotect-db"; then
             echo "DB already exists"
           else
-            flyctl postgres create --name mvprotect-db --region cdg --vm-size shared-cpu-1x --volume-size 1 --yes
+            flyctl postgres create --name mvprotect-db --region cdg --vm-size shared-cpu-1x --volume-size 1 --initial-cluster-size 1
           fi
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
