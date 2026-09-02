@@ -7,14 +7,16 @@
  * PUT    /admin/realisations/:id     — update
  * DELETE /admin/realisations/:id     — delete
  *
- * POST   /admin/upload/request-url  — get presigned GCS upload URL
+ * POST   /admin/upload/request-url  — réserve un id et renvoie l'URL de PUT
+ * PUT    /admin/upload/put/:id      — reçoit le fichier et l'envoie sur Tigris
+ * GET    /admin/objects/uploads/:id — relit une image depuis Tigris
  */
-import { Router } from "express";
+import express, { Router } from "express";
 import { db, pool } from "@workspace/db";
 import { realisationsTable, realisationImagesTable } from "@workspace/db";
 import { asc, eq } from "drizzle-orm";
 import { requireAdmin } from "../../middleware/adminAuth.js";
-import { ObjectStorageService } from "../../lib/objectStorage.js";
+import { ObjectStorageService, ObjectNotFoundError } from "../../lib/objectStorage.js";
 
 const router = Router();
 router.use(requireAdmin);
@@ -183,36 +185,88 @@ router.put("/admin/realisations/:id/images/reorder", async (req, res) => {
   }
 });
 
-// ── Presigned URL for image upload ────────────────────────────────────────
-router.post("/admin/upload/request-url", async (_req, res) => {
-  try {
-    const uploadURL = await storage.getObjectEntityUploadURL();
-    // normalizeObjectEntityPath converts the GCS signed URL → /objects/uploads/<uuid>
-    const objectPath = storage.normalizeObjectEntityPath(uploadURL);
-    // Serving URL via our admin proxy route
-    const servingUrl = `/api/admin${objectPath}`;
-    res.json({ uploadURL, objectPath, servingUrl });
-  } catch (err) {
-    res.status(500).json({ error: "Erreur upload", detail: String(err) });
-  }
+// ── Réservation d'un emplacement d'upload ─────────────────────────────────
+// On renvoie une URL RELATIVE, jamais une URL signée Tigris : le PUT doit
+// repasser par notre API pour que le cookie httpOnly `admin_token` parte avec
+// (une URL signée pointerait sur un autre domaine, sans cookie ni contrôle).
+router.post("/admin/upload/request-url", (_req, res) => {
+  const id = storage.newObjectId();
+  res.json({
+    uploadURL: `/api/admin/upload/put/${id}`,
+    objectPath: `/objects/uploads/${id}`,
+    // URL publique : c'est elle qui est stockée en base et rendue sur le site.
+    servingUrl: storage.publicPath(id),
+  });
 });
 
-// ── Serve uploaded objects (admin uses /api/admin/objects/<path>) ─────────
-router.get("/admin/objects/*path", async (req, res) => {
+// ── Réception du fichier et envoi vers Tigris ─────────────────────────────
+// express.raw avec `type: () => true` court-circuite les parsers JSON/urlencoded
+// globaux et donne le corps brut, quel que soit le Content-Type annoncé.
+router.put(
+  "/admin/upload/put/:id",
+  express.raw({ type: () => true, limit: "25mb" }),
+  async (req, res) => {
+    try {
+      const id = String(req.params["id"] ?? "");
+      if (!storage.isValidObjectId(id)) {
+        res.status(400).json({ error: "ID invalide" });
+        return;
+      }
+
+      const contentType = (req.get("content-type") ?? "")
+        .split(";")[0]!
+        .trim()
+        .toLowerCase();
+      if (!contentType.startsWith("image/")) {
+        res.status(415).json({ error: "Seules les images sont acceptées" });
+        return;
+      }
+
+      const body: unknown = req.body;
+      if (!Buffer.isBuffer(body) || body.length === 0) {
+        res.status(400).json({ error: "Fichier vide" });
+        return;
+      }
+
+      await storage.uploadObject(id, body, contentType);
+      res.status(200).json({ ok: true, servingUrl: storage.publicPath(id) });
+    } catch (err) {
+      res.status(500).json({ error: "Erreur upload", detail: String(err) });
+    }
+  },
+);
+
+// ── Relecture d'une image depuis l'admin ──────────────────────────────────
+// Conservé pour les URLs /api/admin/objects/uploads/<id> déjà en base.
+router.get("/admin/objects/uploads/:id", async (req, res) => {
+  const id = String(req.params["id"] ?? "");
+  if (!storage.isValidObjectId(id)) {
+    res.status(404).json({ error: "Fichier introuvable" });
+    return;
+  }
+
   try {
-    // Express 5 named wildcard: req.params.path is string | string[]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = (req.params as any)["path"];
-    const rawPath = Array.isArray(raw) ? raw.join("/") : String(raw ?? "");
-    const objectPath = `/objects/${rawPath}`;
-    const file = await storage.getObjectEntityFile(objectPath);
-    const response = await storage.downloadObject(file, 3600);
-    const headers = Object.fromEntries(response.headers.entries());
-    for (const [k, v] of Object.entries(headers)) res.setHeader(k, v);
-    const buffer = Buffer.from(await response.arrayBuffer());
-    res.status(response.status).send(buffer);
+    const object = await storage.getObject(id);
+
+    res.setHeader("Content-Type", object.contentType);
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    if (object.contentLength !== undefined) {
+      res.setHeader("Content-Length", String(object.contentLength));
+    }
+    if (object.etag) {
+      res.setHeader("ETag", object.etag);
+    }
+
+    object.stream.on("error", () => {
+      res.destroy();
+    });
+    object.stream.pipe(res);
   } catch (err: unknown) {
-    res.status(404).json({ error: "Fichier introuvable", detail: String(err) });
+    if (err instanceof ObjectNotFoundError) {
+      res.status(404).json({ error: "Fichier introuvable" });
+    } else {
+      res.status(500).json({ error: "Erreur serveur", detail: String(err) });
+    }
   }
 });
 

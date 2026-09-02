@@ -1,6 +1,7 @@
 /**
- * Public object-serving route — no auth required.
- * Only serves files under the uploads/ prefix (realisation photos, etc.).
+ * Service public des images — sans authentification.
+ * Ne sert que les objets du préfixe uploads/ (photos de réalisations, etc.),
+ * stockés sur Tigris.
  *
  * GET /api/objects/uploads/:id
  */
@@ -10,24 +11,30 @@ import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage.
 const router = Router();
 const storage = new ObjectStorageService();
 
-router.get("/objects/uploads/*path", async (req, res) => {
+router.get("/objects/uploads/:id", async (req, res) => {
+  const id = String(req.params["id"] ?? "");
+  if (!storage.isValidObjectId(id)) {
+    res.status(404).json({ error: "Image introuvable" });
+    return;
+  }
+
   try {
-    // Express 5 named wildcard
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const raw = (req.params as any)["path"];
-    const rawPath = Array.isArray(raw) ? raw.join("/") : String(raw ?? "");
-    // Restrict to uploads/ prefix — never expose other object prefixes publicly
-    if (!rawPath || rawPath.includes("..")) {
-      res.status(400).json({ error: "Chemin invalide" });
-      return;
+    const object = await storage.getObject(id);
+
+    res.setHeader("Content-Type", object.contentType);
+    // 24 h de cache : l'identifiant est immuable, le contenu aussi.
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    if (object.contentLength !== undefined) {
+      res.setHeader("Content-Length", String(object.contentLength));
     }
-    const objectPath = `/objects/uploads/${rawPath}`;
-    const file = await storage.getObjectEntityFile(objectPath);
-    const response = await storage.downloadObject(file, 86400); // 24h cache for public images
-    const headers = Object.fromEntries(response.headers.entries());
-    for (const [k, v] of Object.entries(headers)) res.setHeader(k, v);
-    const buffer = Buffer.from(await response.arrayBuffer());
-    res.status(response.status).send(buffer);
+    if (object.etag) {
+      res.setHeader("ETag", object.etag);
+    }
+
+    object.stream.on("error", () => {
+      res.destroy();
+    });
+    object.stream.pipe(res);
   } catch (err: unknown) {
     if (err instanceof ObjectNotFoundError) {
       res.status(404).json({ error: "Image introuvable" });

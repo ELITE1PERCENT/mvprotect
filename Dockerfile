@@ -8,14 +8,13 @@
 #     que Vite nécessite au build. Les deps runtime importées sont pure-JS.
 #   - Stage "production" : image légère node:24-alpine.
 #
-# RÉSOLUTION DES MODULES EXTERNALISÉS
-# esbuild externalise @google-cloud/storage (seule dépendance externalisée
-# réellement importée au runtime). Le serveur est donc lancé DEPUIS
-# artifacts/api-server/dist/, avec les node_modules pnpm laissés en place
-# (isolés, à symlinks) — exactement comme sur l'hôte de dev. Node résout
-# alors `import "@google-cloud/storage"` via
-# artifacts/api-server/node_modules/@google-cloud/storage (symlink vers le
-# store .pnpm de /app/node_modules). Le store racine est donc aussi copié.
+# RÉSOLUTION DES MODULES
+# @aws-sdk/client-s3 (Tigris) est bundlé par esbuild — plus aucune dépendance
+# externalisée n'est importée au runtime. Le serveur est malgré tout lancé
+# DEPUIS artifacts/api-server/dist/ avec les node_modules pnpm laissés en place
+# (isolés, à symlinks), comme sur l'hôte de dev, pour que toute dépendance
+# externalisée ajoutée plus tard reste résolvable via le store .pnpm de
+# /app/node_modules (copié lui aussi).
 # ============================================================================
 
 # ── Stage 1: builder ─────────────────────────────────────────────────────────
@@ -47,14 +46,6 @@ RUN pnpm install --ignore-scripts
 # Reconstruire esbuild (son postinstall télécharge le binaire natif)
 RUN pnpm rebuild esbuild
 
-# ── Assertion : @google-cloud/storage DOIT être résolvable depuis api-server ──
-# `test -d` suit le symlink : vrai uniquement si la cible (dans .pnpm) existe.
-RUN test -d artifacts/api-server/node_modules/@google-cloud/storage \
-      && echo "OK: @google-cloud/storage résolvable depuis artifacts/api-server" \
-      || ( echo "ECHEC: @google-cloud/storage introuvable"; \
-           ls -la artifacts/api-server/node_modules/@google-cloud/ 2>/dev/null; \
-           exit 1 )
-
 # Copier le reste du code source
 COPY . .
 
@@ -77,7 +68,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # Serveur compilé + ses node_modules (symlinks) laissés côte à côte, comme en
-# dev, pour que la résolution de @google-cloud/storage fonctionne à l'identique.
+# dev, pour que la résolution des modules fonctionne à l'identique.
 COPY --from=builder /app/artifacts/api-server/dist           ./artifacts/api-server/dist
 COPY --from=builder /app/artifacts/api-server/node_modules   ./artifacts/api-server/node_modules
 
