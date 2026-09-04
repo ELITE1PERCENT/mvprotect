@@ -5,6 +5,7 @@ import { useAdminAuth } from "@/hooks/useAdminAuth";
 import {
   LayoutDashboard,
   Images,
+  Image as ImageIcon,
   FileText,
   MessageSquare,
   LogOut,
@@ -15,12 +16,14 @@ import { useState } from "react";
 
 const AdminDashboard = lazy(() => import("./AdminDashboard"));
 const AdminRealisations = lazy(() => import("./AdminRealisations"));
+const AdminHeroImage = lazy(() => import("./AdminHeroImage"));
 const AdminContent = lazy(() => import("./AdminContent"));
 const AdminTestimonials = lazy(() => import("./AdminTestimonials"));
 
 const NAV = [
   { href: "/maximeadmin/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
   { href: "/maximeadmin/realisations", label: "Réalisations", icon: Images },
+  { href: "/maximeadmin/hero", label: "Image d'accueil", icon: ImageIcon },
   { href: "/maximeadmin/contenus", label: "Contenus", icon: FileText },
   { href: "/maximeadmin/temoignages", label: "Témoignages", icon: MessageSquare },
 ];
@@ -128,6 +131,7 @@ export default function AdminLayout() {
           <Switch>
             <Route path="/maximeadmin/dashboard" component={AdminDashboard} />
             <Route path="/maximeadmin/realisations" component={AdminRealisations} />
+            <Route path="/maximeadmin/hero" component={AdminHeroImage} />
             <Route path="/maximeadmin/contenus" component={AdminContent} />
             <Route path="/maximeadmin/temoignages" component={AdminTestimonials} />
           </Switch>

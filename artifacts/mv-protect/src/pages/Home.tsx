@@ -1,4 +1,4 @@
-import { webpUrl } from "@/lib/utils";
+import { webpUrl, resolveContentImageUrl } from "@/lib/utils";
 import { useContentBlock } from "@/hooks/useContentBlock";
 import { SEO } from "@/components/SEO";
 import { Link } from "wouter";
@@ -330,6 +330,14 @@ function HeroSection({
   const rawY = useTransform(scrollYProgress, [0, 1], ["0%", "28%"]);
   const heroY = useSpring(rawY, { stiffness: 80, damping: 30 });
 
+  // Image d'accueil — modifiable depuis /maximeadmin/hero (upload + cadrage).
+  const heroBgImage = useContentBlock("home.hero.bgImage", "images/hero-bg.jpg");
+  const heroBgPosition = useContentBlock("home.hero.bgImagePosition", "50% 50%");
+  const heroCarImage = useContentBlock("home.hero.carImage", "images/hero-car.png");
+  const heroCarPosition = useContentBlock("home.hero.carImagePosition", "50% 50%");
+  const heroMobileImage = useContentBlock("home.hero.mobileImage", "images/hero-aerial.jpg");
+  const heroMobilePosition = useContentBlock("home.hero.mobileImagePosition", "50% 0%");
+
   return (
     <section ref={heroRef} className="relative h-[calc(100dvh-116px)] md:h-[95vh] min-h-[500px] md:min-h-[700px] flex items-start md:items-center bg-background diagonal-slice overflow-hidden">
       {/* Desktop — parallax fond + voiture (mouse tracking) */}
@@ -340,8 +348,10 @@ function HeroSection({
         transition={{ duration: 1.8, ease: cinematicEase }}
       >
         <ParallaxHeroImages
-          bgSrc={`${import.meta.env.BASE_URL}images/hero-bg.jpg`}
-          carSrc={`${import.meta.env.BASE_URL}images/hero-car.png`}
+          bgSrc={resolveContentImageUrl(heroBgImage)}
+          carSrc={resolveContentImageUrl(heroCarImage)}
+          bgPosition={heroBgPosition}
+          carPosition={heroCarPosition}
           className="absolute inset-0"
         />
         <div className="absolute inset-0 bg-primary/20 mix-blend-multiply pointer-events-none" />
@@ -354,10 +364,11 @@ function HeroSection({
           initial={{ opacity: 0, scale: 1.05 }}
           animate={{ opacity: 0.78, scale: 1 }}
           transition={{ duration: 2.5, ease: cinematicEase }}
-          src={`${import.meta.env.BASE_URL}images/hero-aerial.jpg`}
+          src={resolveContentImageUrl(heroMobileImage)}
           alt=""
           aria-hidden
-          className="absolute inset-0 w-full h-full object-cover object-top"
+          style={{ objectPosition: heroMobilePosition }}
+          className="absolute inset-0 w-full h-full object-cover"
           decoding="async"
         />
         {/* Overlay sombre semi-transparent pour contraste texte */}

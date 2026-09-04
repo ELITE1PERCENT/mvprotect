@@ -156,23 +156,44 @@ export default function AdminRealisations() {
     setShowForm(true);
   };
 
-  const handleAddExtraImage = async (file: File) => {
+  // Upload séquentiel : préserve l'ordre de sélection et évite de saturer
+  // l'API/le stockage objet quand plusieurs photos sont choisies d'un coup.
+  const [extraUploadProgress, setExtraUploadProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const handleAddExtraImages = async (files: File[]) => {
+    if (files.length === 0) return;
     setUploadingExtra(true);
+    setExtraUploadProgress({ done: 0, total: files.length });
+    let addedCount = 0;
+    let errorCount = 0;
     try {
-      const { servingUrl } = await uploadFile(file);
-      if (editing) {
-        // Attach immediately
-        const img = await addRealisationImage(editing.id, servingUrl);
-        setExtraImages((prev) => [...prev, img]);
-      } else {
-        // Buffer until save
-        setExtraImages((prev) => [...prev, { id: -Date.now(), url: servingUrl }]);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]!;
+        try {
+          const { servingUrl } = await uploadFile(file);
+          if (editing) {
+            // Attach immediately
+            const img = await addRealisationImage(editing.id, servingUrl);
+            setExtraImages((prev) => [...prev, img]);
+          } else {
+            // Buffer until save — id négatif unique le temps de la session locale
+            setExtraImages((prev) => [...prev, { id: -Date.now() - i, url: servingUrl }]);
+          }
+          addedCount++;
+        } catch {
+          errorCount++;
+        }
+        setExtraUploadProgress({ done: i + 1, total: files.length });
       }
-      toast({ title: "Photo ajoutée ✓" });
-    } catch {
-      toast({ title: "Erreur upload photo", variant: "destructive" });
+      if (addedCount > 0) {
+        toast({ title: addedCount > 1 ? `${addedCount} photos ajoutées ✓` : "Photo ajoutée ✓" });
+      }
+      if (errorCount > 0) {
+        toast({ title: `${errorCount} photo(s) en échec`, variant: "destructive" });
+      }
     } finally {
       setUploadingExtra(false);
+      setExtraUploadProgress(null);
     }
   };
 
@@ -547,17 +568,29 @@ export default function AdminRealisations() {
                         className="aspect-square border border-dashed border-white/10 hover:border-[#1e6fff]/50 flex flex-col items-center justify-center gap-1 text-white/30 hover:text-white/60 transition-colors"
                       >
                         {uploadingExtra ? <Loader className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                        <span className="font-sans text-[10px]">{uploadingExtra ? "Upload…" : "Ajouter"}</span>
+                        <span className="font-sans text-[10px]">
+                          {uploadingExtra
+                            ? `${extraUploadProgress?.done ?? 0}/${extraUploadProgress?.total ?? 0}…`
+                            : "Ajouter"}
+                        </span>
                       </button>
                     </div>
                   </SortableContext>
                 </DndContext>
+                <p className="text-white/20 font-sans text-[10px] mb-1">
+                  Sélection multiple possible (plusieurs photos à la fois, sur ordinateur ou mobile).
+                </p>
                 <input
                   ref={extraFileInputRef}
                   type="file"
                   accept="image/*"
+                  multiple
                   className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleAddExtraImage(e.target.files[0])}
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files ?? []);
+                    if (files.length > 0) handleAddExtraImages(files);
+                    e.target.value = "";
+                  }}
                 />
               </div>
 

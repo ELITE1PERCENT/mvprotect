@@ -360,6 +360,19 @@ async function seedContentBlocks(): Promise<void> {
     { key: "contact.phone",         label: "Contact — téléphone (format brut, ex: +33382561062)", section: "contact", value: "+33382561062" },
     { key: "contact.phone_display", label: "Contact — téléphone (affiché, ex: +33 3 82 56 10 62)", section: "contact", value: "+33 3 82 56 10 62" },
     { key: "contact.email",         label: "Contact — adresse email",                  section: "contact", value: "contact@mvprotect.fr" },
+
+    // ── Image d'accueil (hero) — gérées depuis un écran admin dédié,
+    // pas depuis l'éditeur de textes générique (voir HERO_IMAGE_SECTION
+    // côté frontend). Les valeurs par défaut pointent vers les fichiers
+    // statiques existants, identiques au rendu d'avant cette fonctionnalité.
+    { key: "home.hero.bgImage",           label: "Fond — PC",                    section: "hero-image", value: "images/hero-bg.jpg" },
+    { key: "home.hero.bgImagePosition",   label: "Fond — PC (cadrage)",          section: "hero-image", value: "50% 50%" },
+    { key: "home.hero.carImage",          label: "Voiture (calque avant) — PC",  section: "hero-image", value: "images/hero-car.png" },
+    { key: "home.hero.carImagePosition",  label: "Voiture (calque avant) — PC (cadrage)", section: "hero-image", value: "50% 50%" },
+    { key: "home.hero.mobileImage",         label: "Image hero — Mobile/Tablette",           section: "hero-image", value: "images/hero-aerial.jpg" },
+    // "50% 0%" = ancien "object-top" en dur : préserve le cadrage existant tant
+    // que personne n'a repositionné l'image depuis /maximeadmin/hero.
+    { key: "home.hero.mobileImagePosition", label: "Image hero — Mobile/Tablette (cadrage)", section: "hero-image", value: "50% 0%" },
   ];
   for (const block of initial) {
     await pool.query(

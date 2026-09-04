@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   listContentBlocks,
   updateContentBlock,
+  HERO_IMAGE_SECTION,
   type ContentBlock,
 } from "@/lib/adminApi";
 import { Save, Loader } from "lucide-react";
@@ -24,7 +25,10 @@ export default function AdminContent() {
 
   useEffect(() => {
     listContentBlocks()
-      .then((b) => {
+      .then((all) => {
+        // L'image d'accueil a son propre écran (avec upload + cadrage) —
+        // on ne l'affiche pas dans cet éditeur de textes générique.
+        const b = all.filter((block) => block.section !== HERO_IMAGE_SECTION);
         setBlocks(b);
         const init: Record<string, string> = {};
         b.forEach((block) => { init[block.key] = block.value; });
