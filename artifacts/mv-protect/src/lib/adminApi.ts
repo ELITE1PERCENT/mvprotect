@@ -110,12 +110,67 @@ export async function requestUploadUrl(): Promise<UploadUrlResponse> {
   return request<UploadUrlResponse>("POST", "/upload/request-url");
 }
 
+// ── Optimisation automatique des photos avant upload ───────────────────────────
+// Le client (garage) importe souvent des photos issues d'un téléphone (plusieurs
+// Mo, résolution capteur complète), ce qui ralentit fortement le chargement du
+// site. On les recompresse donc en WebP et on plafonne leur plus grand côté
+// avant l'envoi, directement dans le navigateur — aucune image originale n'est
+// stockée telle quelle.
+const MAX_IMAGE_DIMENSION = 2000; // px, plus grand côté
+const WEBP_QUALITY = 0.82;
+
+// Formats volontairement exclus de la recompression :
+// - image/svg+xml : vectoriel, une conversion WebP le détruirait
+// - image/gif     : potentiellement animé, WebP figerait l'animation
+const SKIP_OPTIMIZATION_TYPES = new Set(["image/svg+xml", "image/gif"]);
+
+/**
+ * Recompresse une photo en WebP (et la redimensionne si besoin) côté navigateur.
+ * Retourne le fichier tel quel si le type n'est pas concerné, si le navigateur
+ * ne sait pas encoder du WebP, ou si la conversion échoue ou n'apporte rien —
+ * on ne bloque jamais un upload à cause de l'optimisation.
+ */
+async function optimizeImageForUpload(file: File): Promise<File> {
+  if (!file.type.startsWith("image/") || SKIP_OPTIMIZATION_TYPES.has(file.type)) {
+    return file;
+  }
+  if (typeof createImageBitmap !== "function" || typeof document === "undefined") {
+    return file;
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const width = Math.max(1, Math.round(bitmap.width * scale));
+    const height = Math.max(1, Math.round(bitmap.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close();
+
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/webp", WEBP_QUALITY),
+    );
+    if (!blob || blob.size >= file.size) return file;
+
+    const newName = file.name.replace(/\.[^./\\]+$/, "") + ".webp";
+    return new File([blob], newName, { type: "image/webp" });
+  } catch {
+    return file;
+  }
+}
+
 export async function uploadFile(file: File): Promise<UploadUrlResponse> {
+  const optimized = await optimizeImageForUpload(file);
   const { uploadURL, objectPath, servingUrl } = await requestUploadUrl();
   await fetch(uploadURL, {
     method: "PUT",
-    headers: { "Content-Type": file.type || "application/octet-stream" },
-    body: file,
+    headers: { "Content-Type": optimized.type || "application/octet-stream" },
+    body: optimized,
   });
   return { uploadURL, objectPath, servingUrl };
 }
