@@ -13,3 +13,17 @@ export function cn(...inputs: ClassValue[]) {
 export function webpUrl(path: string): string {
   return `${import.meta.env.BASE_URL}${path.replace(/^\//, "").replace(/\.png$/i, ".webp")}`;
 }
+
+/**
+ * Resolves an image path stored in a content block to a displayable URL.
+ * Content blocks may hold either a static asset path (e.g. "images/hero-bg.jpg",
+ * relative to BASE_URL, no generated .webp twin) or an uploaded file's
+ * absolute serving path (e.g. "/api/objects/uploads/<uuid>"). Unlike
+ * webpUrl(), this never rewrites the extension — uploaded images have none,
+ * and the default static hero files (.jpg / .png) have no .webp twin.
+ */
+export function resolveContentImageUrl(path: string): string {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path) || path.startsWith("/")) return path;
+  return `${import.meta.env.BASE_URL}${path}`;
+}

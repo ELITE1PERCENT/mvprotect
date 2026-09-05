@@ -14,10 +14,19 @@ import { motion, useMotionValue, useReducedMotion } from "framer-motion";
 interface ParallaxHeroImagesProps {
   bgSrc: string;
   carSrc: string;
+  /** CSS object-position, ex. "50% 50%" — cadrage réglé depuis l'admin. */
+  bgPosition?: string;
+  carPosition?: string;
   className?: string;
 }
 
-export function ParallaxHeroImages({ bgSrc, carSrc, className = "" }: ParallaxHeroImagesProps) {
+export function ParallaxHeroImages({
+  bgSrc,
+  carSrc,
+  bgPosition = "50% 50%",
+  carPosition = "50% 50%",
+  className = "",
+}: ParallaxHeroImagesProps) {
   const reducedMotion = useReducedMotion();
 
   // Background motion values
@@ -100,8 +109,8 @@ export function ParallaxHeroImages({ bgSrc, carSrc, className = "" }: ParallaxHe
         src={bgSrc}
         alt="Studio de detailing MV Protect"
         draggable={false}
-        style={{ x: bgX, y: bgY, scale: bgScale }}
-        className="absolute inset-0 w-full h-full object-cover object-center will-change-transform"
+        style={{ x: bgX, y: bgY, scale: bgScale, objectPosition: bgPosition }}
+        className="absolute inset-0 w-full h-full object-cover will-change-transform"
       />
       {/* Car layer — moves faster, creating depth */}
       <motion.img
@@ -109,8 +118,8 @@ export function ParallaxHeroImages({ bgSrc, carSrc, className = "" }: ParallaxHe
         alt=""
         aria-hidden
         draggable={false}
-        style={{ x: carX, y: carY, scale: carScale }}
-        className="absolute inset-0 w-full h-full object-cover object-center will-change-transform pointer-events-none"
+        style={{ x: carX, y: carY, scale: carScale, objectPosition: carPosition }}
+        className="absolute inset-0 w-full h-full object-cover will-change-transform pointer-events-none"
       />
     </div>
   );
