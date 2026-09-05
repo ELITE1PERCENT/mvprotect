@@ -1,10 +1,8 @@
 /**
- * ParallaxHeroImages — deux images superposées animées via rAF loop.
+ * ParallaxHeroImages — image unique animée via rAF loop.
  *
- * Le fond (hero-bg.jpg) suit la souris doucement (amplitude ×10).
- * La voiture (hero-car.png) suit la souris beaucoup plus vite (amplitude ×28),
- * créant un effet de profondeur 3D. Les deux flottent légèrement en idle.
- * Au scroll, les deux images zooment progressivement.
+ * L'image suit la souris (parallax léger) et flotte doucement en idle.
+ * Au scroll, l'image zoome progressivement.
  *
  * Adapté du composant QL du démo MV PROTECT (build minifié).
  */
@@ -12,38 +10,27 @@ import { useEffect } from "react";
 import { motion, useMotionValue, useReducedMotion } from "framer-motion";
 
 interface ParallaxHeroImagesProps {
-  bgSrc: string;
-  carSrc: string;
+  src: string;
   /** CSS object-position, ex. "50% 50%" — cadrage réglé depuis l'admin. */
-  bgPosition?: string;
-  carPosition?: string;
+  position?: string;
   className?: string;
 }
 
 export function ParallaxHeroImages({
-  bgSrc,
-  carSrc,
-  bgPosition = "50% 50%",
-  carPosition = "50% 50%",
+  src,
+  position = "50% 50%",
   className = "",
 }: ParallaxHeroImagesProps) {
   const reducedMotion = useReducedMotion();
 
-  // Background motion values
-  const bgX = useMotionValue(0);
-  const bgY = useMotionValue(0);
-  const bgScale = useMotionValue(1.12);
-
-  // Car motion values
-  const carX = useMotionValue(0);
-  const carY = useMotionValue(0);
-  const carScale = useMotionValue(1.12);
+  const imgX = useMotionValue(0);
+  const imgY = useMotionValue(0);
+  const imgScale = useMotionValue(1.12);
 
   useEffect(() => {
     // Smoothing factor (reduced motion = half amplitude)
     const motionFactor = reducedMotion ? 0.5 : 1;
-    const bgAmplitude = 10 * motionFactor;   // bg moves ±10px
-    const carAmplitude = 28 * motionFactor;  // car moves ±28px (2.8× bg)
+    const amplitude = 16 * motionFactor; // image moves ±16px
     const idleAmplitude = reducedMotion ? 3 : 8; // idle float amplitude
 
     // Raw mouse position (normalised -1..+1)
@@ -77,15 +64,9 @@ export function ParallaxHeroImages({
       const idleX = Math.sin(t * 0.5) * idleAmplitude;
       const idleY = Math.cos(t * 0.37) * idleAmplitude * 0.55;
 
-      // Background — slower parallax + subtle idle
-      bgX.set(-smoothed.x * bgAmplitude + idleX * 0.35);
-      bgY.set(-smoothed.y * (bgAmplitude * 0.8) + idleY * 0.35);
-      bgScale.set(1.12 + scrollProgress * 0.1);
-
-      // Car — faster parallax + more idle float
-      carX.set(-smoothed.x * carAmplitude + idleX);
-      carY.set(-smoothed.y * (carAmplitude * 0.8) + idleY);
-      carScale.set(1.12 + scrollProgress * 0.17);
+      imgX.set(-smoothed.x * amplitude + idleX * 0.6);
+      imgY.set(-smoothed.y * (amplitude * 0.8) + idleY * 0.6);
+      imgScale.set(1.12 + scrollProgress * 0.13);
 
       rafId = requestAnimationFrame(tick);
     };
@@ -100,26 +81,16 @@ export function ParallaxHeroImages({
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("scroll", onScroll);
     };
-  }, [reducedMotion, bgX, bgY, bgScale, carX, carY, carScale]);
+  }, [reducedMotion, imgX, imgY, imgScale]);
 
   return (
     <div className={className}>
-      {/* Background layer — moves slowly */}
       <motion.img
-        src={bgSrc}
+        src={src}
         alt="Studio de detailing MV Protect"
         draggable={false}
-        style={{ x: bgX, y: bgY, scale: bgScale, objectPosition: bgPosition }}
+        style={{ x: imgX, y: imgY, scale: imgScale, objectPosition: position }}
         className="absolute inset-0 w-full h-full object-cover will-change-transform"
-      />
-      {/* Car layer — moves faster, creating depth */}
-      <motion.img
-        src={carSrc}
-        alt=""
-        aria-hidden
-        draggable={false}
-        style={{ x: carX, y: carY, scale: carScale, objectPosition: carPosition }}
-        className="absolute inset-0 w-full h-full object-cover will-change-transform pointer-events-none"
       />
     </div>
   );

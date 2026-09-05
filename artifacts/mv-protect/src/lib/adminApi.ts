@@ -130,17 +130,15 @@ export type ContentBlock = {
 };
 
 /**
- * Section réservée aux images du hero d'accueil (fond PC, calque voiture PC,
- * image mobile) + leur cadrage. Ces blocs sont gérés par un écran admin dédié
- * (AdminHeroImage) et donc exclus de l'éditeur de textes générique.
+ * Section réservée aux images du hero d'accueil (image PC, image mobile) +
+ * leur cadrage. Ces blocs sont gérés par un écran admin dédié (AdminHeroImage)
+ * et donc exclus de l'éditeur de textes générique.
  */
 export const HERO_IMAGE_SECTION = "hero-image";
 
 export const HERO_IMAGE_KEYS = {
   bgImage: "home.hero.bgImage",
   bgImagePosition: "home.hero.bgImagePosition",
-  carImage: "home.hero.carImage",
-  carImagePosition: "home.hero.carImagePosition",
   mobileImage: "home.hero.mobileImage",
   mobileImagePosition: "home.hero.mobileImagePosition",
 } as const;
