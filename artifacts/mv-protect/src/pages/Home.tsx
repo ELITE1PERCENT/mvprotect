@@ -333,14 +333,12 @@ function HeroSection({
   // Image d'accueil — modifiable depuis /maximeadmin/hero (upload + cadrage).
   const heroBgImage = useContentBlock("home.hero.bgImage", "images/hero-bg.jpg");
   const heroBgPosition = useContentBlock("home.hero.bgImagePosition", "50% 50%");
-  const heroCarImage = useContentBlock("home.hero.carImage", "images/hero-car.png");
-  const heroCarPosition = useContentBlock("home.hero.carImagePosition", "50% 50%");
   const heroMobileImage = useContentBlock("home.hero.mobileImage", "images/hero-aerial.jpg");
   const heroMobilePosition = useContentBlock("home.hero.mobileImagePosition", "50% 0%");
 
   return (
     <section ref={heroRef} className="relative h-[calc(100dvh-116px)] md:h-[95vh] min-h-[500px] md:min-h-[700px] flex items-start md:items-center bg-background diagonal-slice overflow-hidden">
-      {/* Desktop — parallax fond + voiture (mouse tracking) */}
+      {/* Desktop — image unique (mouse tracking parallax) */}
       <motion.div
         className="absolute top-0 right-0 w-[65%] h-full diagonal-slice-reverse z-0 hidden lg:block bg-black overflow-hidden"
         initial={{ opacity: 0, x: 60 }}
@@ -348,10 +346,8 @@ function HeroSection({
         transition={{ duration: 1.8, ease: cinematicEase }}
       >
         <ParallaxHeroImages
-          bgSrc={resolveContentImageUrl(heroBgImage)}
-          carSrc={resolveContentImageUrl(heroCarImage)}
-          bgPosition={heroBgPosition}
-          carPosition={heroCarPosition}
+          src={resolveContentImageUrl(heroBgImage)}
+          position={heroBgPosition}
           className="absolute inset-0"
         />
         <div className="absolute inset-0 bg-primary/20 mix-blend-multiply pointer-events-none" />

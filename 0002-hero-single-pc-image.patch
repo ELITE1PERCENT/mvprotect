@@ -1,0 +1,332 @@
+From 1c1aeb4f1ba18794e0ed79b0edb7d39dcb78f54d Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 5 Sep 2026 00:27:10 +0000
+Subject: [PATCH] feat(home): image PC unique pour le hero (fin des 2 calques
+ fond+voiture)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Le hero d'accueil sur ordinateur superposait deux images indépendantes
+(fond + voiture en premier plan). On simplifie pour n'utiliser qu'une
+seule image PC, sur le même principe que le hero mobile qui n'a
+toujours eu qu'une image.
+
+- ParallaxHeroImages: un seul <motion.img> au lieu de deux calques
+  (fond/voiture), garde l'effet de parallax souris + zoom au scroll.
+- Home.tsx: HeroSection ne lit plus home.hero.carImage/carImagePosition,
+  passe une seule src/position à ParallaxHeroImages.
+- adminApi.ts: HERO_IMAGE_KEYS n'expose plus carImage/carImagePosition.
+- AdminHeroImage.tsx (/maximeadmin/hero): suppression de la section
+  "Voiture (calque avant) — PC", renommage de "Fond — PC" en
+  "Image — PC", mise à jour du texte d'intro et des types/état.
+- startup-seed.ts: retrait des 2 lignes de seed pour l'ancien calque
+  voiture (n'affecte pas les valeurs déjà en base en production).
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013JRYYV7K7ZtAHFLaEvAbcR
+---
+ artifacts/api-server/src/lib/startup-seed.ts  |  6 +-
+ .../src/components/ParallaxHeroImages.tsx     | 63 +++++--------------
+ artifacts/mv-protect/src/lib/adminApi.ts      |  8 +--
+ artifacts/mv-protect/src/pages/Home.tsx       | 10 +--
+ .../src/pages/admin/AdminHeroImage.tsx        | 50 +++------------
+ 5 files changed, 35 insertions(+), 102 deletions(-)
+
+diff --git a/artifacts/api-server/src/lib/startup-seed.ts b/artifacts/api-server/src/lib/startup-seed.ts
+index 5d3787d..1c55665 100644
+--- a/artifacts/api-server/src/lib/startup-seed.ts
++++ b/artifacts/api-server/src/lib/startup-seed.ts
+@@ -365,10 +365,8 @@ async function seedContentBlocks(): Promise<void> {
+     // pas depuis l'éditeur de textes générique (voir HERO_IMAGE_SECTION
+     // côté frontend). Les valeurs par défaut pointent vers les fichiers
+     // statiques existants, identiques au rendu d'avant cette fonctionnalité.
+-    { key: "home.hero.bgImage",           label: "Fond — PC",                    section: "hero-image", value: "images/hero-bg.jpg" },
+-    { key: "home.hero.bgImagePosition",   label: "Fond — PC (cadrage)",          section: "hero-image", value: "50% 50%" },
+-    { key: "home.hero.carImage",          label: "Voiture (calque avant) — PC",  section: "hero-image", value: "images/hero-car.png" },
+-    { key: "home.hero.carImagePosition",  label: "Voiture (calque avant) — PC (cadrage)", section: "hero-image", value: "50% 50%" },
++    { key: "home.hero.bgImage",           label: "Image — PC",                   section: "hero-image", value: "images/hero-bg.jpg" },
++    { key: "home.hero.bgImagePosition",   label: "Image — PC (cadrage)",         section: "hero-image", value: "50% 50%" },
+     { key: "home.hero.mobileImage",         label: "Image hero — Mobile/Tablette",           section: "hero-image", value: "images/hero-aerial.jpg" },
+     // "50% 0%" = ancien "object-top" en dur : préserve le cadrage existant tant
+     // que personne n'a repositionné l'image depuis /maximeadmin/hero.
+diff --git a/artifacts/mv-protect/src/components/ParallaxHeroImages.tsx b/artifacts/mv-protect/src/components/ParallaxHeroImages.tsx
+index b28415b..7b1c6ee 100644
+--- a/artifacts/mv-protect/src/components/ParallaxHeroImages.tsx
++++ b/artifacts/mv-protect/src/components/ParallaxHeroImages.tsx
+@@ -1,10 +1,8 @@
+ /**
+- * ParallaxHeroImages — deux images superposées animées via rAF loop.
++ * ParallaxHeroImages — image unique animée via rAF loop.
+  *
+- * Le fond (hero-bg.jpg) suit la souris doucement (amplitude ×10).
+- * La voiture (hero-car.png) suit la souris beaucoup plus vite (amplitude ×28),
+- * créant un effet de profondeur 3D. Les deux flottent légèrement en idle.
+- * Au scroll, les deux images zooment progressivement.
++ * L'image suit la souris (parallax léger) et flotte doucement en idle.
++ * Au scroll, l'image zoome progressivement.
+  *
+  * Adapté du composant QL du démo MV PROTECT (build minifié).
+  */
+@@ -12,38 +10,27 @@ import { useEffect } from "react";
+ import { motion, useMotionValue, useReducedMotion } from "framer-motion";
+ 
+ interface ParallaxHeroImagesProps {
+-  bgSrc: string;
+-  carSrc: string;
++  src: string;
+   /** CSS object-position, ex. "50% 50%" — cadrage réglé depuis l'admin. */
+-  bgPosition?: string;
+-  carPosition?: string;
++  position?: string;
+   className?: string;
+ }
+ 
+ export function ParallaxHeroImages({
+-  bgSrc,
+-  carSrc,
+-  bgPosition = "50% 50%",
+-  carPosition = "50% 50%",
++  src,
++  position = "50% 50%",
+   className = "",
+ }: ParallaxHeroImagesProps) {
+   const reducedMotion = useReducedMotion();
+ 
+-  // Background motion values
+-  const bgX = useMotionValue(0);
+-  const bgY = useMotionValue(0);
+-  const bgScale = useMotionValue(1.12);
+-
+-  // Car motion values
+-  const carX = useMotionValue(0);
+-  const carY = useMotionValue(0);
+-  const carScale = useMotionValue(1.12);
++  const imgX = useMotionValue(0);
++  const imgY = useMotionValue(0);
++  const imgScale = useMotionValue(1.12);
+ 
+   useEffect(() => {
+     // Smoothing factor (reduced motion = half amplitude)
+     const motionFactor = reducedMotion ? 0.5 : 1;
+-    const bgAmplitude = 10 * motionFactor;   // bg moves ±10px
+-    const carAmplitude = 28 * motionFactor;  // car moves ±28px (2.8× bg)
++    const amplitude = 16 * motionFactor; // image moves ±16px
+     const idleAmplitude = reducedMotion ? 3 : 8; // idle float amplitude
+ 
+     // Raw mouse position (normalised -1..+1)
+@@ -77,15 +64,9 @@ export function ParallaxHeroImages({
+       const idleX = Math.sin(t * 0.5) * idleAmplitude;
+       const idleY = Math.cos(t * 0.37) * idleAmplitude * 0.55;
+ 
+-      // Background — slower parallax + subtle idle
+-      bgX.set(-smoothed.x * bgAmplitude + idleX * 0.35);
+-      bgY.set(-smoothed.y * (bgAmplitude * 0.8) + idleY * 0.35);
+-      bgScale.set(1.12 + scrollProgress * 0.1);
+-
+-      // Car — faster parallax + more idle float
+-      carX.set(-smoothed.x * carAmplitude + idleX);
+-      carY.set(-smoothed.y * (carAmplitude * 0.8) + idleY);
+-      carScale.set(1.12 + scrollProgress * 0.17);
++      imgX.set(-smoothed.x * amplitude + idleX * 0.6);
++      imgY.set(-smoothed.y * (amplitude * 0.8) + idleY * 0.6);
++      imgScale.set(1.12 + scrollProgress * 0.13);
+ 
+       rafId = requestAnimationFrame(tick);
+     };
+@@ -100,27 +81,17 @@ export function ParallaxHeroImages({
+       window.removeEventListener("mousemove", onMouseMove);
+       window.removeEventListener("scroll", onScroll);
+     };
+-  }, [reducedMotion, bgX, bgY, bgScale, carX, carY, carScale]);
++  }, [reducedMotion, imgX, imgY, imgScale]);
+ 
+   return (
+     <div className={className}>
+-      {/* Background layer — moves slowly */}
+       <motion.img
+-        src={bgSrc}
++        src={src}
+         alt="Studio de detailing MV Protect"
+         draggable={false}
+-        style={{ x: bgX, y: bgY, scale: bgScale, objectPosition: bgPosition }}
++        style={{ x: imgX, y: imgY, scale: imgScale, objectPosition: position }}
+         className="absolute inset-0 w-full h-full object-cover will-change-transform"
+       />
+-      {/* Car layer — moves faster, creating depth */}
+-      <motion.img
+-        src={carSrc}
+-        alt=""
+-        aria-hidden
+-        draggable={false}
+-        style={{ x: carX, y: carY, scale: carScale, objectPosition: carPosition }}
+-        className="absolute inset-0 w-full h-full object-cover will-change-transform pointer-events-none"
+-      />
+     </div>
+  );
+}
+diff --git a/artifacts/mv-protect/src/lib/adminApi.ts b/artifacts/mv-protect/src/lib/adminApi.ts
+index 1dda6ac..0d75b9b 100644
+--- a/artifacts/mv-protect/src/lib/adminApi.ts
++++ b/artifacts/mv-protect/src/lib/adminApi.ts
+@@ -130,17 +130,15 @@ export type ContentBlock = {
+};
+
+/**
+- * Section réservée aux images du hero d'accueil (fond PC, calque voiture PC,
+- * image mobile) + leur cadrage. Ces blocs sont gérés par un écran admin dédié
+- * (AdminHeroImage) et donc exclus de l'éditeur de textes générique.
++ * Section réservée aux images du hero d'accueil (image PC, image mobile) +
++ * leur cadrage. Ces blocs sont gérés par un écran admin dédié (AdminHeroImage)
++ * et donc exclus de l'éditeur de textes générique.
+  */
+ export const HERO_IMAGE_SECTION = "hero-image";
+ 
+ export const HERO_IMAGE_KEYS = {
+   bgImage: "home.hero.bgImage",
+   bgImagePosition: "home.hero.bgImagePosition",
+-  carImage: "home.hero.carImage",
+-  carImagePosition: "home.hero.carImagePosition",
+   mobileImage: "home.hero.mobileImage",
+   mobileImagePosition: "home.hero.mobileImagePosition",
+} as const;
+diff --git a/artifacts/mv-protect/src/pages/Home.tsx b/artifacts/mv-protect/src/pages/Home.tsx
+index 1721e67..c440663 100644
+--- a/artifacts/mv-protect/src/pages/Home.tsx
++++ b/artifacts/mv-protect/src/pages/Home.tsx
+@@ -333,14 +333,12 @@ function HeroSection({
+   // Image d'accueil — modifiable depuis /maximeadmin/hero (upload + cadrage).
+  const heroBgImage = useContentBlock("home.hero.bgImage", "images/hero-bg.jpg");
+   const heroBgPosition = useContentBlock("home.hero.bgImagePosition", "50% 50%");
+-  const heroCarImage = useContentBlock("home.hero.carImage", "images/hero-car.png");
+-  const heroCarPosition = useContentBlock("home.hero.carImagePosition", "50% 50%");
+  const heroMobileImage = useContentBlock("home.hero.mobileImage", "images/hero-aerial.jpg");
+  const heroMobilePosition = useContentBlock("home.hero.mobileImagePosition", "50% 0%");
+
+  return (
+     <section ref={heroRef} className="relative h-[calc(100dvh-116px)] md:h-[95vh] min-h-[500px] md:min-h-[700px] flex items-start md:items-center bg-background diagonal-slice overflow-hidden">
+-      {/* Desktop — parallax fond + voiture (mouse tracking) */}
++      {/* Desktop — image unique (mouse tracking parallax) */}
+       <motion.div
+         className="absolute top-0 right-0 w-[65%] h-full diagonal-slice-reverse z-0 hidden lg:block bg-black overflow-hidden"
+         initial={{ opacity: 0, x: 60 }}
+@@ -348,10 +346,8 @@ function HeroSection({
+         transition={{ duration: 1.8, ease: cinematicEase }}
+       >
+         <ParallaxHeroImages
+-          bgSrc={resolveContentImageUrl(heroBgImage)}
+-          carSrc={resolveContentImageUrl(heroCarImage)}
+-          bgPosition={heroBgPosition}
+-          carPosition={heroCarPosition}
++          src={resolveContentImageUrl(heroBgImage)}
++          position={heroBgPosition}
+           className="absolute inset-0"
+         />
+         <div className="absolute inset-0 bg-primary/20 mix-blend-multiply pointer-events-none" />
+diff --git a/artifacts/mv-protect/src/pages/admin/AdminHeroImage.tsx b/artifacts/mv-protect/src/pages/admin/AdminHeroImage.tsx
+index da7f153..f162cbb 100644
+--- a/artifacts/mv-protect/src/pages/admin/AdminHeroImage.tsx
++++ b/artifacts/mv-protect/src/pages/admin/AdminHeroImage.tsx
+@@ -13,8 +13,6 @@ import { useToast } from "@/hooks/use-toast";
+ type HeroState = {
+   bgImage: string;
+  bgImagePosition: string;
+-  carImage: string;
+-  carImagePosition: string;
+   mobileImage: string;
+   mobileImagePosition: string;
+};
+@@ -22,20 +20,18 @@ const DEFAULTS: HeroState = {
++  bgImage: "images/hero-bg.jpg",
+ bgImagePosition: "50% 50%",
+-  carImage: "images/hero-car.png",
+-  carImagePosition: "50% 50%",
+   mobileImage: "images/hero-aerial.jpg",
+   mobileImagePosition: "50% 0%",
+};
+
+-/** Une des 3 sections de la page : fond PC, calque voiture PC, image mobile. */
+-type SlotKey = "bg" | "car" | "mobile";
++/** Une des 2 sections de la page : image PC, image mobile. */
++type SlotKey = "bg" | "mobile";
+
+export default function AdminHeroImage() {
+  const [state, setState] = useState<HeroState>(DEFAULTS);
+  const [loading, setLoading] = useState(true);
+-  const [uploading, setUploading] = useState<Record<SlotKey, boolean>>({ bg: false, car: false, mobile: false });
+-  const [saving, setSaving] = useState<Record<SlotKey, boolean>>({ bg: false, car: false, mobile: false });
++  const [uploading, setUploading] = useState<Record<SlotKey, boolean>>({ bg: false, mobile: false });
++  const [saving, setSaving] = useState<Record<SlotKey, boolean>>({ bg: false, mobile: false });
+  const { toast } = useToast();
+
+  useEffect(() => {
+@@ -45,8 +41,6 @@ export default function AdminHeroImage() {
+         setState({
+           bgImage: byKey.get(HERO_IMAGE_KEYS.bgImage) ?? DEFAULTS.bgImage,
+           bgImagePosition: byKey.get(HERO_IMAGE_KEYS.bgImagePosition) ?? DEFAULTS.bgImagePosition,
+-          carImage: byKey.get(HERO_IMAGE_KEYS.carImage) ?? DEFAULTS.carImage,
+-          carImagePosition: byKey.get(HERO_IMAGE_KEYS.carImagePosition) ?? DEFAULTS.carImagePosition,
+           mobileImage: byKey.get(HERO_IMAGE_KEYS.mobileImage) ?? DEFAULTS.mobileImage,
+           mobileImagePosition: byKey.get(HERO_IMAGE_KEYS.mobileImagePosition) ?? DEFAULTS.mobileImagePosition,
+         });
+@@ -103,17 +97,16 @@ export default function AdminHeroImage() {
+         Image d'accueil
+       </h1>
+       <p className="text-white/40 font-sans text-sm mb-8 leading-relaxed">
+-        Le hero de la page d'accueil est composé de plusieurs images : sur ordinateur, un fond et une
+-        voiture en premier plan (deux calques superposés qui bougent au survol) ; sur mobile et tablette,
+-        une seule image plein écran. Uploadez une photo puis faites-la glisser dans le cadre pour choisir
+-        la zone visible, ensuite cliquez sur Enregistrer.
++        Le hero de la page d'accueil utilise une image sur ordinateur et une image sur mobile
++        et tablette (chacune plein écran). Uploadez une photo puis faites-la glisser dans le
++        cadre pour choisir la zone visible, ensuite cliquez sur Enregistrer.
+       </p>
+
+       <div className="space-y-10">
+         <section className="bg-[#080c14] border border-white/5 p-5">
+           <ImagePositionPicker
+-            label="Fond — PC"
+-            hint="Visible en arrière-plan sur ordinateur (masqué sur mobile et tablette)."
++            label="Image — PC"
++            hint="Visible sur ordinateur (masquée sur mobile et tablette)."
+             src={resolveContentImageUrl(state.bgImage)}
+             position={state.bgImagePosition}
+             aspect={16 / 10}
+@@ -133,33 +126,10 @@ export default function AdminHeroImage() {
+           </div>
+         </section>
+
+-        <section className="bg-[#080c14] border border-white/5 p-5">
+-          <ImagePositionPicker
+-            label="Voiture (calque avant) — PC"
+-            hint="Superposée au fond, légèrement transparente sur les bords — idéalement une photo détourée (fond transparent, PNG) pour un rendu propre."
+-            src={resolveContentImageUrl(state.carImage)}
+-            position={state.carImagePosition}
+-            aspect={16 / 10}
+-            uploading={uploading.car}
+-            onUpload={(file) => handleUpload("car", "carImage", file)}
+-            onPositionChange={(pos) => setState((s) => ({ ...s, carImagePosition: pos }))}
+-          />
+-          <div className="flex justify-end mt-4">
+-            <button
+-              onClick={() => handleSave("car", "carImage", "carImagePosition", HERO_IMAGE_KEYS.carImage, HERO_IMAGE_KEYS.carImagePosition)}
+-              disabled={saving.car}
+-              className="flex items-center gap-2 bg-[#1e6fff]/10 hover:bg-[#1e6fff] text-[#1e6fff] hover:text-white border border-[#1e6fff]/30 hover:border-[#1e6fff] font-heading font-bold uppercase tracking-wider text-xs px-4 py-2 transition-all disabled:opacity-50"
+-            >
+-              {saving.car ? <Loader className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+-              Enregistrer
+-            </button>
+-          </div>
+-        </section>
+-
+         <section className="bg-[#080c14] border border-white/5 p-5">
+           <ImagePositionPicker
+             label="Image hero — Mobile & tablette"
+-            hint="Visible en plein écran sur mobile et tablette (remplace le fond + la voiture PC en dessous du format ordinateur)."
++            hint="Visible en plein écran sur mobile et tablette (remplace l'image PC en dessous du format ordinateur)."
+            src={resolveContentImageUrl(state.mobileImage)}
+            position={state.mobileImagePosition}
+             aspect={3 / 4}
+-- 
+2.43.0
+

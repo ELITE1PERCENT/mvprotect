@@ -365,10 +365,8 @@ async function seedContentBlocks(): Promise<void> {
     // pas depuis l'éditeur de textes générique (voir HERO_IMAGE_SECTION
     // côté frontend). Les valeurs par défaut pointent vers les fichiers
     // statiques existants, identiques au rendu d'avant cette fonctionnalité.
-    { key: "home.hero.bgImage",           label: "Fond — PC",                    section: "hero-image", value: "images/hero-bg.jpg" },
-    { key: "home.hero.bgImagePosition",   label: "Fond — PC (cadrage)",          section: "hero-image", value: "50% 50%" },
-    { key: "home.hero.carImage",          label: "Voiture (calque avant) — PC",  section: "hero-image", value: "images/hero-car.png" },
-    { key: "home.hero.carImagePosition",  label: "Voiture (calque avant) — PC (cadrage)", section: "hero-image", value: "50% 50%" },
+    { key: "home.hero.bgImage",           label: "Image — PC",                   section: "hero-image", value: "images/hero-bg.jpg" },
+    { key: "home.hero.bgImagePosition",   label: "Image — PC (cadrage)",         section: "hero-image", value: "50% 50%" },
     { key: "home.hero.mobileImage",         label: "Image hero — Mobile/Tablette",           section: "hero-image", value: "images/hero-aerial.jpg" },
     // "50% 0%" = ancien "object-top" en dur : préserve le cadrage existant tant
     // que personne n'a repositionné l'image depuis /maximeadmin/hero.
