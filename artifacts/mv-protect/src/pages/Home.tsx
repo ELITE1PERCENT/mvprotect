@@ -159,6 +159,11 @@ function RealisationsCard({
   );
 }
 
+function RealisationSlot({ item, idx, className = "" }: { item?: FeaturedRealisation; idx: number; className?: string }) {
+  if (!item) return <div className={`bg-white/5 ${className}`} />;
+  return <RealisationsCard r={item} idx={idx} className={className} />;
+}
+
 function RealisationsPreview() {
   const { fadeUp } = useCinematicVariants();
   const { data: featured } = useFeaturedRealisations();
@@ -197,20 +202,20 @@ function RealisationsPreview() {
           <>
             {/* Ligne 1 : grande gauche (65%) | 2 petites droite empilées (35%) */}
             <div className="isolate flex gap-8 md:gap-10 h-64 md:h-80 mb-8 md:mb-10">
-              <RealisationsCard r={items[0]!} idx={0} className="w-[65%]" />
+              <RealisationSlot item={items[0]} idx={0} className="w-[65%]" />
               <div className="w-[35%] flex flex-col gap-8 md:gap-10">
-                <RealisationsCard r={items[1]!} idx={1} className="flex-1" />
-                <RealisationsCard r={items[2]!} idx={2} className="flex-1" />
+                <RealisationSlot item={items[1]} idx={1} className="flex-1" />
+                <RealisationSlot item={items[2]} idx={2} className="flex-1" />
               </div>
             </div>
 
             {/* Ligne 2 : 2 petites gauche empilées (35%) | grande droite (65%) */}
             <div className="isolate flex gap-8 md:gap-10 h-64 md:h-80">
               <div className="w-[35%] flex flex-col gap-8 md:gap-10">
-                <RealisationsCard r={items[3]!} idx={3} className="flex-1" />
-                <RealisationsCard r={items[4]!} idx={4} className="flex-1" />
+                <RealisationSlot item={items[3]} idx={3} className="flex-1" />
+                <RealisationSlot item={items[4]} idx={4} className="flex-1" />
               </div>
-              <RealisationsCard r={items[5]!} idx={5} className="w-[65%]" />
+              <RealisationSlot item={items[5]} idx={5} className="w-[65%]" />
             </div>
           </>
         ) : (
