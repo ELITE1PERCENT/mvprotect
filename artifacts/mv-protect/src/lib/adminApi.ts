@@ -143,6 +143,7 @@ async function optimizeImageForUpload(file: File): Promise<File> {
     const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(bitmap.width, bitmap.height));
     const width = Math.max(1, Math.round(bitmap.width * scale));
     const height = Math.max(1, Math.round(bitmap.height * scale));
+    const wasResized = scale < 1;
 
     const canvas = document.createElement("canvas");
     canvas.width = width;
@@ -152,13 +153,31 @@ async function optimizeImageForUpload(file: File): Promise<File> {
     ctx.drawImage(bitmap, 0, 0, width, height);
     bitmap.close();
 
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/webp", WEBP_QUALITY),
-    );
-    if (!blob || blob.size >= file.size) return file;
+    // WebP d'abord (meilleure compression). Certains navigateurs (vieux Safari
+        // iOS notamment) ignorent silencieusement le type demande et renvoient un
+        // PNG enorme : on retente alors en JPEG pour ne jamais reperdre le
+        // benefice du redimensionnement, quel que soit le format supporte.
+        let blob = await new Promise<Blob | null>((resolve) =>
+                canvas.toBlob(resolve, "image/webp", WEBP_QUALITY),
+                                                      );
+        let outExt = "webp";
+        let outType = "image/webp";
+        if (!blob || blob.type !== "image/webp") {
+                blob = await new Promise<Blob | null>((resolve) =>
+                          canvas.toBlob(resolve, "image/jpeg", WEBP_QUALITY),
+                                                            );
+                outExt = "jpg";
+                outType = "image/jpeg";
+        }
+        if (!blob) return file;
 
-    const newName = file.name.replace(/\.[^./\\]+$/, "") + ".webp";
-    return new File([blob], newName, { type: "image/webp" });
+        // Si aucun redimensionnement n'etait necessaire (photo deja petite), on ne
+        // garde la version recompressee que si elle est vraiment plus legere. Si
+        // un redimensionnement a eu lieu, on la garde toujours.
+        if (!wasResized && blob.size >= file.size) return file;
+
+        const newName = file.name.replace(/\.[^./\\]+$/, "") + "." + outExt;
+        return new File([blob], newName, { type: outType });
   } catch {
     return file;
   }
