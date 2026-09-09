@@ -152,11 +152,6 @@ function RealisationsCard({
   );
 }
 
-function RealisationSlot({ item, idx, className = "" }: { item?: FeaturedRealisation; idx: number; className?: string }) {
-  if (!item) return <div className={`bg-white/5 ${className}`} />;
-  return <RealisationsCard r={item} idx={idx} className={className} />;
-}
-
 function RealisationsPreview() {
   const { fadeUp } = useCinematicVariants();
   const { data: featured } = useFeaturedRealisations();
@@ -192,44 +187,23 @@ function RealisationsPreview() {
         </motion.div>
 
         {items.length > 0 ? (
-          <>
-            {/* Ligne 1 : grande gauche (65%) | 2 petites droite empilées (35%) */}
-            <div className="isolate flex gap-8 md:gap-10 h-64 md:h-80 mb-8 md:mb-10">
-              <RealisationSlot item={items[0]} idx={0} className="w-[65%]" />
-              <div className="w-[35%] flex flex-col gap-8 md:gap-10">
-                <RealisationSlot item={items[1]} idx={1} className="flex-1" />
-                <RealisationSlot item={items[2]} idx={2} className="flex-1" />
-              </div>
-            </div>
-
-            {/* Ligne 2 : 2 petites gauche empilées (35%) | grande droite (65%) */}
-            <div className="isolate flex gap-8 md:gap-10 h-64 md:h-80">
-              <div className="w-[35%] flex flex-col gap-8 md:gap-10">
-                <RealisationSlot item={items[3]} idx={3} className="flex-1" />
-                <RealisationSlot item={items[4]} idx={4} className="flex-1" />
-              </div>
-              <RealisationSlot item={items[5]} idx={5} className="w-[65%]" />
-            </div>
-          </>
-        ) : (
-          /* Placeholders loading */
-          <>
-            <div className="flex gap-5 md:gap-6 h-64 md:h-80 mb-5 md:mb-6">
-              <div className="w-[65%] bg-white/5 animate-pulse" />
-              <div className="w-[35%] flex flex-col gap-5 md:gap-6">
-                <div className="flex-1 bg-white/5 animate-pulse" />
-                <div className="flex-1 bg-white/5 animate-pulse" />
-              </div>
-            </div>
-            <div className="flex gap-5 md:gap-6 h-64 md:h-80">
-              <div className="w-[35%] flex flex-col gap-5 md:gap-6">
-                <div className="flex-1 bg-white/5 animate-pulse" />
-                <div className="flex-1 bg-white/5 animate-pulse" />
-              </div>
-              <div className="w-[65%] bg-white/5 animate-pulse" />
-            </div>
-          </>
-        )}
+                /* Grille simple : chaque carte a son propre ratio (aspect-ratio), sa
+                             hauteur ne dépend donc jamais d'un parent flex/hauteur fixe — plus
+                                          aucun risque qu'une carte déborde sur sa voisine, quel que soit le
+                                                       nombre de réalisations mises en avant (1 à 6). */
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+                  {items.slice(0, 6).map((item, i) => (
+                                <RealisationsCard key={item.id} r={item} idx={i} className="aspect-[4/3]" />
+                              ))}
+                </div>
+              ) : (
+                /* Placeholders loading */
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                                <div key={i} className="aspect-[4/3] bg-white/5 animate-pulse" />
+                              ))}
+                </div>
+              )}
 
         <div className="mt-8 flex justify-center md:hidden">
           <Link href="/realisations" className="flex items-center gap-2 text-primary font-heading font-bold uppercase tracking-widest text-sm hover:text-accent transition-colors">
