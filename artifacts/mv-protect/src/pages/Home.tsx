@@ -104,33 +104,26 @@ function HeroReviews({ testimonials }: { testimonials: Array<{ name: string; com
 }
 
 // ─── Réalisations preview ─────────────────────────────────────────────────────
-// Rotation sur le wrapper — contrôlée avec un z-index explicite par carte pour
-// que la priorité de rendu soit définie (pas d'ordre DOM par défaut).
-// Les grandes cartes (idx 0 et 5) sont en avant (z:4), les petites derrière (z:2/3).
-const ROTATIONS = ["-1.5deg", "1.2deg", "-0.9deg", "1.8deg", "-1.2deg", "0.8deg"];
-const Z_INDICES =  [4,         2,         3,         3,         2,         4];
+// Note : pas de rotation sur les cartes. Une légère rotation par carte a été
+// testée mais provoquait un chevauchement visuel avec les cartes voisines
+// (surtout visible avec des photos à fort contraste, ex. logo sur fond
+// blanc) — la grille doit rester bien alignée, cartes fixes côte à côte.
 
 function RealisationsCard({
-  r, idx, className = "",
+    r, idx, className = "",
 }: {
-  r: FeaturedRealisation;
-  idx: number;
-  className?: string;
+    r: FeaturedRealisation;
+    idx: number;
+    className?: string;
 }) {
-  const shouldReduceMotion = useReducedMotion();
-  const rotate = ROTATIONS[idx % ROTATIONS.length]!;
-  const zIndex = Z_INDICES[idx % Z_INDICES.length]!;
-
-  return (
-    <motion.div
-      className={`relative min-w-0 ${className}`}
-      style={shouldReduceMotion ? { zIndex } : { rotate, zIndex }}
-      whileHover={{ zIndex: 10 }}
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.15 }}
-      transition={{ duration: 0.6, delay: idx * 0.07, ease: cinematicEase }}
-    >
+    return (
+          <motion.div
+                  className={`relative min-w-0 ${className}`}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.15 }}
+                  transition={{ duration: 0.6, delay: idx * 0.07, ease: cinematicEase }}
+                >
       <Link
         href="/realisations"
         className="group block relative w-full h-full overflow-hidden bg-black
